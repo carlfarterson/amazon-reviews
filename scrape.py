@@ -170,7 +170,8 @@ def main():
 
 	if len(invalid_ASINS) > 0:
 		print('\nUnable to pull data for {} ASINs.  Details available in invalid_ASIN.csv\n'.format(len(invalid_ASINS)))
-		pd.DataFrame({'ASIN': invalid_ASINS}).to_csv('data/invalid_ASIN.csv')
+		temp = pd.DataFrame({'ASIN': invalid_ASINS})
+		temp.to_csv('data/invalid_ASIN.csv')
 
 if __name__ == '__main__':
 
