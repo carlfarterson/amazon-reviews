@@ -1,0 +1,5 @@
+Time to run            :  40.03 minutes
+# of ASINS pulled      :  45
+Average time per ASIN  :  53.38 seconds
+# of reviews           :  6173
+# of questions         :  309
