@@ -14,14 +14,14 @@ Summary
 |  ASIN  |  reviews_verified  |  reviews_unverified  |  avg_review  |  avg_review_verified  |  avg_review_unverified  |
 
 '''
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-import pandas as pd
-from progressbar import ProgressBar, Percentage, Bar, ETA, SimpleProgress
 import os
+import random
+import pandas as pd
 from datetime import datetime
 from time import sleep
-import random
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from progressbar import ProgressBar, Percentage, Bar, ETA, SimpleProgress
 
 
 def main():
