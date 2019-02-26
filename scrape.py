@@ -19,91 +19,70 @@ import random
 import pandas as pd
 from datetime import datetime
 from time import sleep
+from driver import Chrome
 from progressbar import ProgressBar, Percentage, Bar, ETA, SimpleProgress
+
+# Progress bar to show current status of web scrape
+widgets = ['ASIN ', SimpleProgress(),'  ', Percentage(), ' ', Bar(marker='#',left='[',right=']'), ' ', ETA()]
+pbar = ProgressBar(widgets=widgets, maxval=len(df)).start()
+
+chrome = Chrome()
 
 
 # bot start time
 t0 = datetime.now()
-
-df = pd.read_excel('ASINs_to_scrape.xlsx')
-asin = df['ASIN'][0] # NOTE: testing
 
 # Dataframes to store scrape information
 reviews_df = pd.DataFrame(columns=['ASIN', 'date', 'author_id', 'author_name', 'rating', 'title', 'description', 'verified'])
 questions_df = pd.DataFrame(columns=['ASIN', 'date', 'question', 'answer', 'author_of_answer'])
 invalid_ASINs = []
 
-# Progress bar to show current status of web scrape
-widgets = ['ASIN ', SimpleProgress(),'  ', Percentage(), ' ', Bar(marker='#',left='[',right=']'), ' ', ETA()]
-pbar = ProgressBar(widgets=widgets, maxval=len(df)).start()
+asins = pd.read_excel('ASINs_to_scrape.xlsx')['ASIN'].tolist()
+for i, asin in enumerate(asins):
 
-def Driver(url):
-	# Add options to make chrome headless and run in background
-	# chrome_options = Options()
-	# chrome_options.add_argument('--headless')
-	# chrome_options.add_argument('log-level=3')
-	# chrome_options.add_argument('--disable-extensions')
-	# chrome_options.add_argument('test-type')
-	driver = webdriver.Chrome('chromedriver.exe', options=chrome_options)
-	driver.get(url)
-	sleep(2 + random.random()/1.36963)
-	return driver
-
-# initialize basic web page
-driver = Driver('https://www.google.com')
-
-def goto_url(driver, url):
-	driver.get(url)
-	sleep(1.5 + random.random()/4)
-
-for x, asin in enumerate(df['ASIN']):
-
-	# reset the web scraper every 10 ASINS since it slows down after a while
-	if (x + 1)% 10 == 0:
-		driver.close()
-		# sleep(1)
-		driver = Driver('https://www.google.com')
-		# sleep(2)
+	# Refresh chrome every 10 ASIN's scraped
+	if i % 10 == 0:
+		chrome = Chrome()
 
 	pbar.update(x + 1)
 
 	# Pull reviews
-	reviews_link = 'https://www.amazon.com/product-reviews/' + asin + '/ref=acr_search_see_all?ie=UTF8&showViewpoints=1'
-	driver.get(reviews_link)
+	reviews_url = 'https://www.amazon.com/product-reviews/' + asin + '/ref=acr_search_see_all?ie=UTF8&showViewpoints=1'
+	chrome.goto(reviews_url)
 
 	while True:
-		# Wait a few seconds for page to load before pulling elements from page
-		sleep(2 + random.random()/3)
-		reviews = driver.find_elements_by_xpath('//div[@data-hook="review"]')
+		reviews = chrome.xpath('//div[@data-hook="review"]', isList=True)
 		# Append ASIN to invalid_ASINs if there are no reviews for the item
 		if len(reviews) == 0:
 			invalid_ASINs = invalid_ASINs.append(asin)
 			break
 
-		for el in reviews:
-			review_id = el.get_attribute('id')
+		for review in reviews:
 
-			rating = el.find_element_by_xpath('div/div/div[2]/a').get_attribute('title')
+			review_id = review.get_attribute('id')
+
+			rating = review.find_element_by_xpath('div/div/div[2]/a').get_attribute('title')
 			rating = float(rating[:rating.find(' ')])
 
 			author_id = el.find_element_by_xpath('div/div/div/a').get_attribute('href')
 			author_id = author_id[author_id.find('account.') + len('account.'):author_id.find('/ref')]
 
-			data = el.text.split('\n')
-			author_name = data[0]
-			if 'TOP' in data[1]:
-				data.pop(1)
+			results = el.text.split('\n')
+			author_name = results[0]
 
-			title = data[1]
+			if 'TOP' in results[1]:
+				results.pop(1)
+
+			title = results[1]
 			try:
-				date = datetime.strptime(data[2], '%B %d, %Y')
+				date = datetime.strptime(results[2], '%B %d, %Y')
 			except:
 				date = None
 
 			description = ''
 			num_helped = 0
 			verified = False
-			for val in data[3:]:
+			for val in results[3:]:
 				if 'Helpful' in val:
 					break
 				elif 'Verified Purchase' in val:
@@ -117,7 +96,7 @@ for x, asin in enumerate(df['ASIN']):
 				else:
 					description += val
 
-			reviews_df = reviews_df.append({
+			reviews_df.append({
 				'ASIN': asin,
 				'date': date,
 				'author_id': author_id,
@@ -130,43 +109,37 @@ for x, asin in enumerate(df['ASIN']):
 
 		# Click to next page of reviews
 		try:
-			driver.find_element_by_xpath("//li[@class='a-last']/a").click()
-			num_clicks += 1
+			chrome.xpath("//li[@class='a-last']/a").click()
 		except:
 			break
 
-	# go to the next ASIN if there were no reviews for the item
-	if asin in invalid_ASINs:
-		continue
-
 	# Pull questions
 	questions_link = 'https://www.amazon.com/ask/questions/asin/'+ asin +'/ref=ask_dp_dpmw_ql_hza?isAnswered=true'
-	driver.get(questions_link)
+	chrome.goto(questions_link)
 	while True:
-		# Wait a few seconds for page to load before pulling elements from page
-		sleep(2 + random.random()/2)
-		questions = driver.find_elements_by_xpath("//div[@class='a-section askTeaserQuestions']/div")
-
+		questions = chrome.xpath("//div[@class='a-section askTeaserQuestions']/div", isList=True)
 		# Exit if there are no questions for the ASIN
 		if len(questions) == 0:
 			break
 
 		for q in questions:
-			date = q.find_element_by_xpath("div/div[2]/div[2]/div/div[2]/span[2]").text[2:]
+			date = chrome.get_text(container=q, path="div/div[2]/div[2]/div/div[2]/span[2]")[2:]
 			try:
 				date = datetime.strptime(date, '%B %d, %Y')
 			except:
 				date = ''
 
+			question = chrome.get_text(container=q, path=)
 			question = q.find_element_by_xpath("div/div[2]/div/div/div[2]/a/span").text
+			
 			answer = q.find_element_by_xpath("div/div[2]/div[2]/div/div[2]/span[1]").text
+			chrome.get_text(container=q, path= "div/div[2]/div[2]/div/div[2]/span[1]")
 			author_of_answer = q.find_element_by_xpath("//div[@class='a-profile-content']/span[@class='a-profile-name']").text
 			questions_df.append([asin, date, question, answer, author_of_answer])
 
 		try:
 			# Click to the next page of questions
-			driver.find_element_by_xpath("//li[@class='a-last']/a").click()
-			num_clicks += 1
+			chrome.xpath("//li[@class='a-last']/a").click()
 		except:
 			break
 
