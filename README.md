@@ -1,4 +1,4 @@
-# Amazon review/question scraper and aggregator
+# Amazon review/question aggregator
 ## By: Carter Carlson
 
 ### Summary
